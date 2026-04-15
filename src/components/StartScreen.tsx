@@ -93,7 +93,7 @@ export default function StartScreen({ onStart }: Props) {
       )}
 
       <a
-        href="?admin=true"
+        href={`${import.meta.env.BASE_URL}?admin=true`}
         className="mt-10 text-xs text-slate-300 hover:text-slate-400 transition-colors"
       >
         선생님 페이지

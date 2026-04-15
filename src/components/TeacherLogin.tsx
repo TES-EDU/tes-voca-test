@@ -68,7 +68,7 @@ export default function TeacherLogin({ onLogin }: Props) {
           </button>
         </form>
 
-        <a href="/" className="block text-center text-xs text-slate-300 hover:text-slate-400 mt-6 transition-colors">
+        <a href={import.meta.env.BASE_URL} className="block text-center text-xs text-slate-300 hover:text-slate-400 mt-6 transition-colors">
           학생 페이지로 돌아가기
         </a>
       </div>
