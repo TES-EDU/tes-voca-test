@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, User, Share2, Check, TrendingUp, TrendingDown, AlertCircle, FileText, Clock, ChevronRight } from 'lucide-react';
-import { getStudentResults, type TestResultRow } from '../lib/supabase';
+import { ArrowLeft, RefreshCw, User, Share2, Check, Trash2, TrendingUp, TrendingDown, AlertCircle, FileText, Clock, ChevronRight } from 'lucide-react';
+import { getStudentResults, deleteStudentResults, type TestResultRow } from '../lib/supabase';
 import { scoreColor, groupAccent, formatDuration } from '../lib/sunbeam';
 
 interface Props {
@@ -53,6 +53,15 @@ export default function StudentHistoryScreen({ studentName, onBack, onReportClic
   const [rows, setRows] = useState<TestResultRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [shareCopied, setShareCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = useCallback(async () => {
+    if (!window.confirm(`"${studentName}" 학생의 모든 데이터를 삭제할까요?\n이 작업은 되돌릴 수 없습니다.`)) return;
+    setDeleting(true);
+    const ok = await deleteStudentResults(studentName);
+    setDeleting(false);
+    if (ok) onBack();
+  }, [studentName, onBack]);
 
   const handleShareLatest = useCallback(async () => {
     const latest = rows[0];
@@ -143,6 +152,14 @@ export default function StudentHistoryScreen({ studentName, onBack, onReportClic
               }`}
             >
               {shareCopied ? <Check size={18} /> : <Share2 size={18} />}
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting || rows.length === 0}
+              title="학생 데이터 전체 삭제"
+              className="p-[11px] bg-sb-surface border-[1.5px] border-sb-line text-sb-muted hover:border-sb-wrong hover:text-sb-wrong-dark rounded-xl transition-colors disabled:opacity-40"
+            >
+              <Trash2 size={18} />
             </button>
           </div>
 

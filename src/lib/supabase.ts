@@ -54,6 +54,15 @@ export async function getAllTestResults(): Promise<TestResultRow[]> {
   return data ?? [];
 }
 
+export async function deleteStudentResults(userName: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('test_results')
+    .delete()
+    .eq('user_name', userName);
+  if (error) { console.error('Failed to delete student results:', error); return false; }
+  return true;
+}
+
 export async function getStudentResults(userName: string): Promise<TestResultRow[]> {
   const { data, error } = await supabase
     .from('test_results')
