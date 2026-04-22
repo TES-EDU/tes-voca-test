@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, X, Check, AlertCircle, Share2, Copy, Loader2 } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Share2, Copy, Check, AlertCircle, Loader2, Home, FileText, ArrowRight } from 'lucide-react';
 import type { Question } from '../lib/testGenerator';
 import { saveTestResult } from '../lib/supabase';
+import { scoreColor } from '../lib/sunbeam';
 
 interface Props {
   questions: Question[];
@@ -9,26 +10,23 @@ interface Props {
   studentName: string;
   levelGroup: '1-2' | '3-4' | '5-6';
   onRestart: () => void;
+  onReviewDetail: () => void;
 }
 
-export default function ResultScreen({ questions, answers, studentName, levelGroup, onRestart }: Props) {
-  const [showWrongList, setShowWrongList] = useState(true);
-  const [showCorrectList, setShowCorrectList] = useState(false);
+export default function ResultScreen({
+  questions, answers, studentName, levelGroup, onRestart, onReviewDetail,
+}: Props) {
   const [shareState, setShareState] = useState<'idle' | 'saving' | 'copied' | 'error'>('idle');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const savedRef = useRef(false);
+  const shareUrlRef = useRef<string | null>(null);
 
   const total = questions.length;
   const bookTitle = `TES VOCA LV ${levelGroup}`;
 
   const { correctResults, wrongResults, score } = useMemo(() => {
     const correct: { word: string; meaning: string }[] = [];
-    const wrong: {
-      word: string;
-      meaning: string;
-      userAnswer: string;
-      sentence: string;
-    }[] = [];
-
+    const wrong: { word: string; meaning: string; userAnswer: string; sentence: string }[] = [];
     questions.forEach((q, i) => {
       const userAns = answers[i];
       if (userAns !== null && userAns === q.answerIndex) {
@@ -42,7 +40,6 @@ export default function ResultScreen({ questions, answers, studentName, levelGro
         });
       }
     });
-
     return {
       correctResults: correct,
       wrongResults: wrong,
@@ -50,201 +47,125 @@ export default function ResultScreen({ questions, answers, studentName, levelGro
     };
   }, [questions, answers, total]);
 
-  const handleShare = async () => {
-    if (shareState === 'saving') return;
-
-    // 이미 저장된 URL이 있으면 바로 복사
-    if (shareUrl) {
-      await navigator.clipboard.writeText(shareUrl);
-      setShareState('copied');
-      setTimeout(() => setShareState('idle'), 2000);
-      return;
-    }
-
-    setShareState('saving');
-
-    const id = await saveTestResult({
+  // 결과 화면 진입 시 자동 저장
+  useEffect(() => {
+    if (savedRef.current) return;
+    savedRef.current = true;
+    saveTestResult({
       user_name: studentName,
-      book_title: `TES VOCA LV ${levelGroup}`,
+      book_title: bookTitle,
       unit_title: levelGroup,
       total_questions: total,
       score,
       time_taken: 0,
       correct_answers: correctResults,
       incorrect_answers: wrongResults.map(w => ({
-        word: w.word,
-        meaning: w.meaning,
-        userAnswer: w.userAnswer,
-        correctAnswer: w.word,
-        sentence: w.sentence,
+        word: w.word, meaning: w.meaning, userAnswer: w.userAnswer,
+        correctAnswer: w.word, sentence: w.sentence,
       })),
+    }).then(id => {
+      if (id) {
+        const url = `${window.location.origin}${window.location.pathname}?report=${id}`;
+        shareUrlRef.current = url;
+        setShareUrl(url);
+      }
     });
+  }, []);
 
-    if (!id) {
-      setShareState('error');
+  const handleShare = async () => {
+    if (shareState === 'saving') return;
+    if (shareUrl) {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareState('copied');
       setTimeout(() => setShareState('idle'), 2000);
       return;
     }
-
-    const url = `${window.location.origin}${window.location.pathname}?report=${id}`;
-    setShareUrl(url);
-    await navigator.clipboard.writeText(url);
-    setShareState('copied');
-    setTimeout(() => setShareState('idle'), 2000);
+    // 아직 자동 저장이 완료되지 않은 경우 잠시 대기
+    setShareState('saving');
+    await new Promise(r => setTimeout(r, 800));
+    const url = shareUrlRef.current;
+    if (url) {
+      await navigator.clipboard.writeText(url);
+      setShareState('copied');
+      setTimeout(() => setShareState('idle'), 2000);
+    } else {
+      setShareState('error');
+      setTimeout(() => setShareState('idle'), 2000);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white shadow-sm px-4 h-14 flex items-center gap-4 shrink-0 sticky top-0 z-10">
-        <h1 className="font-bold text-slate-800 truncate">성적표</h1>
+    <div className="min-h-screen bg-sb-bg flex flex-col">
+      <header className="bg-sb-surface border-b border-sb-line h-14 px-5 flex items-center gap-2.5 shrink-0">
+        <div className="w-[22px] h-[22px] rounded-md bg-gradient-to-br from-sb-primary to-sb-primary-dark flex items-center justify-center text-white text-[11px] font-extrabold -tracking-tight">T</div>
+        <span className="text-sm font-extrabold text-sb-ink -tracking-tight">TES VOCA</span>
+        <div className="w-px h-3 bg-sb-line" />
+        <span className="text-xs text-sb-muted font-medium">· 성적표</span>
       </header>
 
-      <div className="p-4 flex-1 pb-8">
-        {/* Report Card Container */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
-
-          {/* Header with Logo area */}
-          <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
+      <div className="p-5 flex-1 pb-8 max-w-xl w-full mx-auto">
+        {/* Score card */}
+        <div className="bg-sb-surface border border-sb-line rounded-2xl p-5 mb-3.5">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-sb-line-soft">
             <div>
-              <p className="text-lg font-extrabold text-indigo-600">TES VOCA</p>
-              <p className="text-xs text-slate-400">종합테스트</p>
+              <div className="text-[11px] text-sb-muted font-bold tracking-wider">{studentName} 학생의 성적표</div>
+              <div className="text-sm text-sb-ink font-bold mt-0.5">{bookTitle} · {total}문제</div>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-400">TES 영어학원</p>
-              <p className="text-sm text-slate-700">{bookTitle}</p>
+            <div className="text-[11px] text-sb-muted">{new Date().toLocaleDateString('ko-KR')}</div>
+          </div>
+
+          <div className="flex items-end gap-4 mb-4">
+            <div className={`text-[72px] font-extrabold -tracking-[0.04em] leading-none tabular-nums ${scoreColor(score)}`}>
+              {score}
+              <span className="text-3xl align-top">%</span>
+            </div>
+            <div className="pb-2">
+              <div className="text-sm text-sb-ink font-bold">종합 정답률</div>
+              <div className="text-[11px] text-sb-muted">총 {total}문제 중 {correctResults.length}문제 정답</div>
             </div>
           </div>
 
-          {/* Title */}
-          <h2 className="text-lg font-bold text-slate-800 mb-1">
-            {studentName} 학생의 종합테스트 성적표
-          </h2>
-          <p className="text-sm text-slate-400 mb-4">{bookTitle} · 120문제</p>
-
-          {/* Score Display */}
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl p-5 mb-4 text-white relative overflow-hidden">
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full"></div>
-            <div className="relative z-10">
-              <p className="text-indigo-100 text-sm font-medium mb-1">종합 정답률</p>
-              <div className="flex items-end gap-2">
-                <span className="text-5xl font-bold">{score}</span>
-                <span className="text-2xl font-bold mb-1">%</span>
-              </div>
-              <p className="text-indigo-200 text-sm mt-2">
-                총 {total}문제 중 {correctResults.length}문제 정답
-              </p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-sb-primary-pale rounded-xl p-3 text-center">
+              <div className="text-[10px] text-sb-primary-dark font-bold tracking-wider mb-0.5">문제</div>
+              <div className="text-xl font-extrabold text-sb-primary-dark tabular-nums">{total}</div>
+            </div>
+            <div className="bg-sb-correct-pale rounded-xl p-3 text-center">
+              <div className="text-[10px] text-sb-correct-dark font-bold tracking-wider mb-0.5">정답</div>
+              <div className="text-xl font-extrabold text-sb-correct-dark tabular-nums">{correctResults.length}</div>
+            </div>
+            <div className="bg-sb-wrong-pale rounded-xl p-3 text-center">
+              <div className="text-[10px] text-sb-wrong-dark font-bold tracking-wider mb-0.5">오답</div>
+              <div className="text-xl font-extrabold text-sb-wrong-dark tabular-nums">{wrongResults.length}</div>
             </div>
           </div>
-
-          {/* Stats Table */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
-            <div className="bg-emerald-500 p-3 flex items-center gap-2 text-white">
-              <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-bold">단어</span>
-              <span className="text-sm font-medium">{bookTitle}</span>
-            </div>
-
-            <div className="p-4 bg-white">
-              <div className="rounded-lg border border-slate-100 overflow-hidden text-sm">
-                <div className="flex bg-slate-50 border-b border-slate-100">
-                  <div className="w-1/4 p-2.5 text-slate-500 font-bold text-center">구분</div>
-                  <div className="w-1/4 p-2.5 text-slate-500 font-medium text-center">문제</div>
-                  <div className="w-1/4 p-2.5 text-slate-500 font-medium text-center">정답</div>
-                  <div className="w-1/4 p-2.5 text-slate-500 font-medium text-center">오답</div>
-                </div>
-                <div className="flex bg-indigo-50">
-                  <div className="w-1/4 p-2.5 text-indigo-700 font-bold text-center">합계</div>
-                  <div className="w-1/4 p-2.5 text-center font-bold text-indigo-600">{total}</div>
-                  <div className="w-1/4 p-2.5 text-center font-bold text-emerald-600">{correctResults.length}</div>
-                  <div className="w-1/4 p-2.5 text-center font-bold text-red-500">{wrongResults.length}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Wrong Answers List - Collapsible */}
-          {wrongResults.length > 0 && (
-            <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
-              <button
-                onClick={() => setShowWrongList(!showWrongList)}
-                className="w-full bg-slate-50 p-3 flex items-center justify-between hover:bg-slate-100 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <AlertCircle size={14} className="text-red-500" />
-                  <span className="font-bold text-slate-700 text-sm">오답 목록</span>
-                  <span className="text-xs text-red-500">{wrongResults.length}개</span>
-                </div>
-                {showWrongList
-                  ? <ChevronUp size={18} className="text-slate-400" />
-                  : <ChevronDown size={18} className="text-slate-400" />
-                }
-              </button>
-
-              {showWrongList && (
-                <div className="p-4 bg-white space-y-2">
-                  {wrongResults.map((result, index) => (
-                    <div key={index} className="flex items-center gap-3 text-sm bg-red-50 p-3 rounded-lg">
-                      <X size={14} className="text-red-400 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-slate-700 truncate">{result.word}</div>
-                        <div className="text-xs text-slate-400">{result.meaning}</div>
-                        <div className="text-xs text-slate-300 italic mt-0.5">{result.sentence}</div>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs shrink-0">
-                        <span className="text-red-400 line-through">{result.userAnswer}</span>
-                        <span className="text-slate-300">→</span>
-                        <span className="text-emerald-600 font-bold">{result.word}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Correct Answers - Collapsible */}
-          {correctResults.length > 0 && (
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <button
-                onClick={() => setShowCorrectList(!showCorrectList)}
-                className="w-full bg-slate-50 p-3 flex items-center justify-between hover:bg-slate-100 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Check size={14} className="text-emerald-500" />
-                  <span className="font-bold text-slate-700 text-sm">정답 목록</span>
-                  <span className="text-xs text-emerald-500">{correctResults.length}개</span>
-                </div>
-                {showCorrectList
-                  ? <ChevronUp size={18} className="text-slate-400" />
-                  : <ChevronDown size={18} className="text-slate-400" />
-                }
-              </button>
-
-              {showCorrectList && (
-                <div className="p-4 bg-white">
-                  <div className="flex flex-wrap gap-2">
-                    {correctResults.map((result, index) => (
-                      <span key={index} className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full font-medium">
-                        {result.word}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Share Button */}
+        {/* Review Detail CTA */}
+        <button
+          onClick={onReviewDetail}
+          className="w-full bg-sb-surface border border-sb-line rounded-2xl p-4 mb-3.5 flex items-center gap-3 hover:border-sb-primary-light hover:bg-sb-primary-paler transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-sb-primary-pale flex items-center justify-center shrink-0">
+            <FileText size={18} className="text-sb-primary-dark" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="text-sm font-extrabold text-sb-ink">문제별 리뷰 보기</div>
+            <div className="text-[11px] text-sb-muted">오답만 보기 · 발음 듣기 · 내 선택 vs 정답</div>
+          </div>
+          <ArrowRight size={18} className="text-sb-muted-soft" />
+        </button>
+
+        {/* Share */}
         <button
           onClick={handleShare}
           disabled={shareState === 'saving'}
-          className="w-full bg-white border-2 border-indigo-200 hover:border-indigo-400 text-indigo-600 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all mb-3 disabled:opacity-60"
+          className="w-full bg-sb-surface border-[1.5px] border-sb-primary-light text-sb-primary-dark py-4 rounded-2xl font-extrabold flex items-center justify-center gap-2 hover:bg-sb-primary-pale transition-colors mb-2 disabled:opacity-60"
         >
           {shareState === 'saving' && <Loader2 size={18} className="animate-spin" />}
           {shareState === 'copied' && <Check size={18} />}
-          {shareState === 'error' && <AlertCircle size={18} className="text-red-500" />}
-          {(shareState === 'idle' || shareState === 'saving') && shareState !== 'saving' && <Share2 size={18} />}
+          {shareState === 'error' && <AlertCircle size={18} className="text-sb-wrong" />}
+          {shareState === 'idle' && <Share2 size={18} />}
           {shareState === 'saving' && '저장 중...'}
           {shareState === 'copied' && '링크 복사됨!'}
           {shareState === 'error' && '저장 실패. 다시 시도해주세요'}
@@ -252,23 +173,19 @@ export default function ResultScreen({ questions, answers, studentName, levelGro
         </button>
 
         {shareUrl && (
-          <div className="flex items-center gap-2 bg-slate-100 rounded-xl px-4 py-3 mb-3 text-xs text-slate-500 break-all">
-            <Copy size={14} className="shrink-0 text-slate-400" />
+          <div className="flex items-center gap-2 bg-sb-surface-alt rounded-xl px-4 py-3 mb-2 text-[11px] text-sb-muted break-all">
+            <Copy size={14} className="shrink-0 text-sb-muted-soft" />
             <span className="flex-1">{shareUrl}</span>
           </div>
         )}
 
-        {/* Restart Button */}
+        {/* Restart */}
         <button
           onClick={onRestart}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-bold shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 transition-all"
+          className="w-full bg-sb-primary-dark text-white py-4 rounded-2xl font-extrabold flex items-center justify-center gap-2 shadow-[0_6px_16px_rgba(27,122,132,0.2)]"
         >
-          처음으로 돌아가기
+          <Home size={18} /> 처음으로 돌아가기
         </button>
-
-        <p className="text-center text-xs text-slate-400 mt-4">
-          {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
       </div>
     </div>
   );

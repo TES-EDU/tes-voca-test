@@ -2,11 +2,13 @@ import { useState, useCallback } from 'react';
 import StartScreen from './components/StartScreen';
 import TestScreen from './components/TestScreen';
 import ResultScreen from './components/ResultScreen';
+import ResultDetailScreen from './components/ResultDetailScreen';
 import SharedReport from './components/SharedReport';
 import AdminPage from './components/AdminPage';
+import StudentHistoryScreen from './components/StudentHistoryScreen';
 import { generateTest, type Question } from './lib/testGenerator';
 
-type Screen = 'start' | 'test' | 'result';
+type Screen = 'start' | 'test' | 'result' | 'result-detail';
 
 const params = new URLSearchParams(window.location.search);
 const sharedReportId = params.get('report');
@@ -18,6 +20,7 @@ export default function App() {
   const [levelGroup, setLevelGroup] = useState<'1-2' | '3-4' | '5-6'>('1-2');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
+  const [adminStudent, setAdminStudent] = useState<string | null>(null);
 
   const handleStart = useCallback((name: string, group: '1-2' | '3-4' | '5-6') => {
     const qs = generateTest(group);
@@ -40,7 +43,18 @@ export default function App() {
   }, []);
 
   if (isAdmin) {
-    return <AdminPage />;
+    if (adminStudent) {
+      return (
+        <StudentHistoryScreen
+          studentName={adminStudent}
+          onBack={() => setAdminStudent(null)}
+          onReportClick={(id) => {
+            window.location.href = `${window.location.pathname}?report=${id}`;
+          }}
+        />
+      );
+    }
+    return <AdminPage onStudentClick={(name) => setAdminStudent(name)} />;
   }
 
   if (sharedReportId) {
@@ -62,13 +76,30 @@ export default function App() {
     );
   }
 
-  return (
-    <ResultScreen
-      questions={questions}
-      answers={answers}
-      studentName={studentName}
-      levelGroup={levelGroup}
-      onRestart={handleRestart}
-    />
-  );
+  if (screen === 'result') {
+    return (
+      <ResultScreen
+        questions={questions}
+        answers={answers}
+        studentName={studentName}
+        levelGroup={levelGroup}
+        onRestart={handleRestart}
+        onReviewDetail={() => setScreen('result-detail')}
+      />
+    );
+  }
+
+  if (screen === 'result-detail') {
+    return (
+      <ResultDetailScreen
+        questions={questions}
+        answers={answers}
+        studentName={studentName}
+        levelGroup={levelGroup}
+        onBack={() => setScreen('result')}
+      />
+    );
+  }
+
+  return null;
 }

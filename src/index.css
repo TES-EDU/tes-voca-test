@@ -1,14 +1,50 @@
 @import "tailwindcss";
 
+@theme {
+  /* Sunbeam Glow palette */
+  --color-sb-primary: #77CDD0;
+  --color-sb-primary-dark: #1B7A84;
+  --color-sb-primary-mid: #4FAFB3;
+  --color-sb-primary-light: #A8E6E8;
+  --color-sb-primary-pale: #E8F9FA;
+  --color-sb-primary-paler: #F3FCFD;
+
+  --color-sb-orange: #F47C5A;
+  --color-sb-orange-dark: #D96646;
+  --color-sb-orange-pale: #FEF0EB;
+  --color-sb-yellow: #F5C248;
+
+  --color-sb-correct: #2FA07E;
+  --color-sb-correct-dark: #1A7959;
+  --color-sb-correct-pale: #E6F5EF;
+  --color-sb-wrong: #E35D4F;
+  --color-sb-wrong-dark: #B8412F;
+  --color-sb-wrong-pale: #FCECEA;
+
+  --color-sb-bg: #F7F8F9;
+  --color-sb-surface: #FFFFFF;
+  --color-sb-surface-alt: #F5F6F6;
+
+  --color-sb-ink: #1B3A3D;
+  --color-sb-ink-mid: #3D6B6F;
+  --color-sb-muted: #6B7A7E;
+  --color-sb-muted-soft: #A8B3B6;
+  --color-sb-muted-softer: #C6CED0;
+  --color-sb-line: #E2E6E8;
+  --color-sb-line-soft: #EEF1F2;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--color-sb-bg);
+  color: var(--color-sb-ink);
 }
 
 #root {

@@ -1,22 +1,21 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Copy, Check, Loader2, RefreshCw, LogOut } from 'lucide-react';
+import { Copy, Check, Loader2, RefreshCw, LogOut, ChevronRight } from 'lucide-react';
 import { getAllTestResults, type TestResultRow } from '../lib/supabase';
+import { scoreColor, groupAccent } from '../lib/sunbeam';
 import TeacherLogin from './TeacherLogin';
 
-const GROUP_LABELS: Record<string, { label: string; color: string }> = {
-  '1-2': { label: 'LV 1-2', color: 'bg-blue-100 text-blue-700' },
-  '3-4': { label: 'LV 3-4', color: 'bg-emerald-100 text-emerald-700' },
-  '5-6': { label: 'LV 5-6', color: 'bg-rose-100 text-rose-700' },
-};
-
-function scoreColor(score: number) {
-  if (score >= 90) return 'text-emerald-600';
-  if (score >= 70) return 'text-indigo-600';
-  if (score >= 50) return 'text-amber-600';
-  return 'text-red-500';
+interface Props {
+  onStudentClick: (studentName: string) => void;
 }
 
-export default function AdminPage() {
+const FILTER_LABELS: Record<string, string> = {
+  all: '전체',
+  '1-2': 'LV 1-2',
+  '3-4': 'LV 3-4',
+  '5-6': 'LV 5-6',
+};
+
+export default function AdminPage({ onStudentClick }: Props) {
   const [authed, setAuthed] = useState(sessionStorage.getItem('teacher_auth') === 'true');
   const [results, setResults] = useState<TestResultRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +38,8 @@ export default function AdminPage() {
     setAuthed(false);
   };
 
-  const handleCopy = async (id: string) => {
+  const handleCopy = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     const url = `${window.location.origin}${window.location.pathname}?report=${id}`;
     await navigator.clipboard.writeText(url);
     setCopiedId(id);
@@ -55,24 +55,26 @@ export default function AdminPage() {
     : results.filter(r => r.unit_title === filter);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-sb-bg">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-4 h-14 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <span className="font-extrabold text-indigo-600">TES VOCA</span>
-          <span className="text-slate-400 text-sm font-medium">성적 관리</span>
+      <header className="bg-sb-surface border-b border-sb-line px-5 h-14 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="w-[22px] h-[22px] rounded-md bg-gradient-to-br from-sb-primary to-sb-primary-dark flex items-center justify-center text-white text-[11px] font-extrabold -tracking-tight">T</div>
+          <span className="text-sm font-extrabold text-sb-ink -tracking-tight">TES VOCA</span>
+          <div className="w-px h-3 bg-sb-line" />
+          <span className="text-xs text-sb-muted font-medium">· 성적 관리</span>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={load}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-sb-muted hover:text-sb-primary-dark transition-colors"
           >
             <RefreshCw size={14} />
             새로고침
           </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-500 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-sb-muted hover:text-sb-wrong-dark transition-colors"
           >
             <LogOut size={14} />
             로그아웃
@@ -89,31 +91,31 @@ export default function AdminPage() {
               onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                 filter === f
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:border-indigo-300'
+                  ? 'bg-sb-primary-dark text-white'
+                  : 'bg-sb-surface text-sb-muted border border-sb-line hover:border-sb-primary-light'
               }`}
             >
-              {f === 'all' ? '전체' : `LV ${f}`}
+              {FILTER_LABELS[f]}
             </button>
           ))}
-          <span className="ml-auto text-sm text-slate-400 self-center">
+          <span className="ml-auto text-sm text-sb-muted self-center">
             총 {filtered.length}건
           </span>
         </div>
 
         {/* Content */}
         {loading ? (
-          <div className="flex justify-center py-20 text-slate-400">
+          <div className="flex justify-center py-20 text-sb-muted-soft">
             <Loader2 size={28} className="animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20 text-slate-400 text-sm">
+          <div className="text-center py-20 text-sb-muted-soft text-sm">
             결과가 없습니다.
           </div>
         ) : (
           <div className="space-y-2">
             {filtered.map(r => {
-              const group = GROUP_LABELS[r.unit_title ?? ''] ?? { label: r.unit_title ?? '-', color: 'bg-slate-100 text-slate-600' };
+              const accent = groupAccent((r.unit_title ?? '1-2') as '1-2' | '3-4' | '5-6');
               const date = r.created_at
                 ? new Date(r.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                 : '-';
@@ -122,36 +124,39 @@ export default function AdminPage() {
               return (
                 <div
                   key={r.id}
-                  className="bg-white rounded-xl border border-slate-100 px-4 py-3 flex items-center gap-3 shadow-sm"
+                  onClick={() => onStudentClick(r.user_name)}
+                  className="w-full bg-sb-surface rounded-xl border border-sb-line px-4 py-3 flex items-center gap-3 shadow-sm hover:border-sb-primary-light hover:bg-sb-primary-paler transition-all cursor-pointer"
                 >
-                  <div className={`text-2xl font-extrabold w-14 text-right shrink-0 ${scoreColor(r.score)}`}>
+                  <div className={`text-2xl font-extrabold w-14 text-right shrink-0 -tracking-tight tabular-nums ${scoreColor(r.score)}`}>
                     {r.score}
                     <span className="text-xs font-bold">%</span>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-bold text-slate-800 truncate">{r.user_name}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold shrink-0 ${group.color}`}>
-                        {group.label}
+                      <span className="font-bold text-sb-ink truncate">{r.user_name}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold shrink-0 ${accent.chip}`}>
+                        LV {r.unit_title}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-sb-muted">
                       {r.correct_answers?.length ?? 0}/{r.total_questions}문제 정답 · {date}
                     </div>
                   </div>
 
                   <button
-                    onClick={() => r.id && handleCopy(r.id)}
+                    onClick={(e) => r.id && handleCopy(e, r.id)}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold shrink-0 transition-all ${
                       isCopied
-                        ? 'bg-emerald-50 text-emerald-600'
-                        : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                        ? 'bg-sb-correct-pale text-sb-correct-dark'
+                        : 'bg-sb-primary-pale text-sb-primary-dark hover:bg-sb-primary-light'
                     }`}
                   >
                     {isCopied ? <Check size={14} /> : <Copy size={14} />}
                     {isCopied ? '복사됨' : '링크 복사'}
                   </button>
+
+                  <ChevronRight size={16} className="text-sb-muted-softer shrink-0" />
                 </div>
               );
             })}

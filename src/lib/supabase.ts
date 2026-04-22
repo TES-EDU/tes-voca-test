@@ -54,6 +54,16 @@ export async function getAllTestResults(): Promise<TestResultRow[]> {
   return data ?? [];
 }
 
+export async function getStudentResults(userName: string): Promise<TestResultRow[]> {
+  const { data, error } = await supabase
+    .from('test_results')
+    .select('*')
+    .eq('user_name', userName)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('Failed to get student results:', error); return []; }
+  return data ?? [];
+}
+
 export async function getTestResult(id: string): Promise<TestResultRow | null> {
   const { data, error } = await supabase
     .from('test_results')

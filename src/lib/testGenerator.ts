@@ -86,7 +86,7 @@ export function generateTest(levelGroup: '1-2' | '3-4' | '5-6'): Question[] {
     }
   }
 
-  // Per unit: pick 2 random valid words
+  // Per unit: pick 1 random valid word
   const selectedWords: Word[] = [];
   for (const lv of [l1, l2]) {
     const levelData = data[String(lv)];
@@ -96,7 +96,7 @@ export function generateTest(levelGroup: '1-2' | '3-4' | '5-6'): Question[] {
       const validWords = levelData[unitKey]
         .filter((e) => e.valid)
         .map((e) => ({ ...e, level: lv, unit }));
-      const picked = shuffle(validWords).slice(0, 2);
+      const picked = shuffle(validWords).slice(0, 1);
       selectedWords.push(...picked);
     }
   }
@@ -121,7 +121,7 @@ export function generateTest(levelGroup: '1-2' | '3-4' | '5-6'): Question[] {
     };
   });
 
-  // Shuffle all 120
+  // Shuffle all 60
   const shuffled = shuffle(questions);
   return shuffled.map((q, i) => ({ ...q, id: i + 1 }));
 }
