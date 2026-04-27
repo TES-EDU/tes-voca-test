@@ -20,6 +20,7 @@
   --color-sb-wrong: #E35D4F;
   --color-sb-wrong-dark: #B8412F;
   --color-sb-wrong-pale: #FCECEA;
+  --color-sb-wrong-light: #F5B8B3;
 
   --color-sb-bg: #F7F8F9;
   --color-sb-surface: #FFFFFF;
@@ -40,6 +41,8 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
+  word-break: keep-all;
   font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
