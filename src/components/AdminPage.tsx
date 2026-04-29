@@ -121,8 +121,6 @@ export default function AdminPage({ onStudentClick }: Props) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  if (!authed) return <TeacherLogin onLogin={() => setAuthed(true)} />;
-
   const filtered = useMemo(() => {
     let data = levelFilter === 'all' ? results : results.filter(r => r.unit_title === levelFilter);
     if (period !== 'all') {
@@ -151,6 +149,8 @@ export default function AdminPage({ onStudentClick }: Props) {
     const low = filtered.filter(r => r.score < 70).length;
     return { total, avg, max, low };
   }, [filtered]);
+
+  if (!authed) return <TeacherLogin onLogin={() => setAuthed(true)} />;
 
   const SharedHeader = () => (
     <header className="bg-sb-surface border-b border-sb-line px-5 h-14 flex items-center justify-between sticky top-0 z-10">
