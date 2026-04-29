@@ -77,9 +77,12 @@ function LevelCard({ lv, on, onClick }: { lv: typeof LEVELS[number]; on: boolean
 
 export default function StartScreen({ onStart }: Props) {
   const [name, setName] = useState('');
+  const [testCode, setTestCode] = useState('');
   const [selected, setSelected] = useState<'1-2' | '3-4' | '5-6'>('3-4');
 
-  const canStart = !!name.trim();
+  const VALID_CODE = 'TES1234';
+  const codeValid = testCode.trim().toUpperCase() === VALID_CODE;
+  const canStart = !!name.trim() && codeValid;
   const handleStart = () => { if (canStart) onStart(name.trim(), selected); };
 
   return (
@@ -130,9 +133,26 @@ export default function StartScreen({ onStart }: Props) {
             <p className="text-[11px] text-sb-muted mt-1.5">학생증 또는 출석부의 이름 그대로 입력해 주세요.</p>
           </div>
 
+          <div className="mb-7">
+            <label className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2 tracking-wide">
+              <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">2</span>
+              응시 코드 <span className="text-sb-orange">*</span>
+            </label>
+            <div className={`bg-sb-surface rounded-xl transition-all duration-150 ${testCode && codeValid ? 'border-[1.5px] border-sb-primary shadow-[0_0_0_4px_#E8F9FA]' : testCode && !codeValid ? 'border-[1.5px] border-sb-orange shadow-[0_0_0_4px_#FFF3E0]' : 'border-[1.5px] border-sb-line'}`}>
+              <input
+                value={testCode}
+                onChange={(e) => setTestCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+                placeholder="응시 코드를 입력하세요"
+                className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl"
+              />
+            </div>
+            <p className="text-[11px] text-sb-muted mt-1.5">{testCode && !codeValid ? '응시 코드가 올바르지 않습니다.' : '선생님께 받은 응시 코드를 입력해 주세요.'}</p>
+          </div>
+
           <div className="mb-9">
             <div className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2.5 tracking-wide">
-              <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">2</span>
+              <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">3</span>
               레벨 선택
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
@@ -210,9 +230,26 @@ export default function StartScreen({ onStart }: Props) {
             <p className="text-[11px] text-sb-muted mt-1.5">학생증 또는 출석부의 이름 그대로 입력해 주세요.</p>
           </div>
 
+          <div className="mb-7">
+            <label className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2 tracking-wide">
+              <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">2</span>
+              응시 코드 <span className="text-sb-orange">*</span>
+            </label>
+            <div className={`bg-sb-surface rounded-xl transition-all duration-150 ${testCode && codeValid ? 'border-[1.5px] border-sb-primary shadow-[0_0_0_4px_#E8F9FA]' : testCode && !codeValid ? 'border-[1.5px] border-sb-orange shadow-[0_0_0_4px_#FFF3E0]' : 'border-[1.5px] border-sb-line'}`}>
+              <input
+                value={testCode}
+                onChange={(e) => setTestCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+                placeholder="응시 코드를 입력하세요"
+                className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl"
+              />
+            </div>
+            <p className="text-[11px] text-sb-muted mt-1.5">{testCode && !codeValid ? '응시 코드가 올바르지 않습니다.' : '선생님께 받은 응시 코드를 입력해 주세요.'}</p>
+          </div>
+
           <div className="mb-9">
             <div className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2.5 tracking-wide">
-              <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">2</span>
+              <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">3</span>
               레벨 선택
             </div>
             <div className="grid grid-cols-3 gap-2.5">
