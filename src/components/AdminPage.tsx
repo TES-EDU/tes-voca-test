@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Copy, Check, Loader2, RefreshCw, LogOut, ChevronRight, Search, Users, BookOpen, AlertTriangle, ClipboardList, Plus, Trash2, MoreHorizontal } from 'lucide-react';
+import { Copy, Check, Loader2, RefreshCw, LogOut, ChevronRight, Search, Users, BookOpen, ClipboardList, Plus, Trash2, MoreHorizontal } from 'lucide-react';
 import { getAllTestResults, getTeacherSession, getMyAcademies, setCurrentAcademy, getCurrentAcademyId, teacherLogout, supabase, getStudents, getClasses, createClass, updateClassStudents, deleteClass, type TestResultRow, type AcademyRow, type StudentRow, type ClassRow } from '../lib/supabase';
 import { scoreColor, groupAccent } from '../lib/sunbeam';
 import TeacherLogin from './TeacherLogin';
@@ -93,19 +93,6 @@ export default function AdminPage({ onStudentClick }: Props) {
     return data;
   }, [results, levelFilter, query]);
 
-  // Wrong answer analysis
-  const wrongWordRanking = useMemo(() => {
-    const map = new Map<string, { word: string; meaning: string; count: number }>();
-    results.forEach(r => {
-      (r.incorrect_answers ?? []).forEach((w: { word: string; meaning: string }) => {
-        const key = w.word;
-        const existing = map.get(key);
-        if (existing) existing.count++;
-        else map.set(key, { word: w.word, meaning: w.meaning, count: 1 });
-      });
-    });
-    return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 15);
-  }, [results]);
 
   // Per-student stats for mobile rich cards
   const studentStats = useMemo(() => {
