@@ -6,7 +6,7 @@ import TeacherLogin from './TeacherLogin';
 
 interface Props { onStudentClick: (studentName: string) => void; }
 
-type Tab = 'dashboard' | 'students' | 'classes' | 'history';
+type Tab = 'students' | 'classes' | 'history';
 type LevelFilter = 'all' | '1-2' | '3-4' | '5-6';
 
 const FILTER_LABELS: Record<string, string> = { all: '전체', '1-2': 'LV 1-2', '3-4': 'LV 3-4', '5-6': 'LV 5-6' };
@@ -40,7 +40,7 @@ export default function AdminPage({ onStudentClick }: Props) {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>('students');
   const [levelFilter, setLevelFilter] = useState<LevelFilter>('all');
   const [query, setQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -199,7 +199,6 @@ export default function AdminPage({ onStudentClick }: Props) {
 
   // ── Tab Bar ──
   const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
-    { id: 'dashboard', icon: <ClipboardList size={16} />, label: '대시보드' },
     { id: 'students', icon: <Users size={16} />, label: '학생 관리' },
     { id: 'classes', icon: <BookOpen size={16} />, label: '반 관리' },
     { id: 'history', icon: <Search size={16} />, label: '시험 이력' },
@@ -414,7 +413,7 @@ export default function AdminPage({ onStudentClick }: Props) {
           onKeyDown={e => e.key === 'Enter' && handleCreateClass()}
           placeholder="새 반 이름 (예: 하계관 중등)" className="flex-1 h-11 px-4 rounded-xl border border-sb-line bg-sb-surface text-sm outline-none focus:border-sb-primary" />
         <button onClick={handleCreateClass} disabled={!newClassName.trim()}
-          className="h-11 px-5 rounded-xl bg-sb-primary-dark text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
+          className="h-11 px-5 rounded-xl bg-sb-primary-dark text-white text-sm font-bold flex items-center gap-1.5 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap shrink-0">
           <Plus size={16} />반 만들기
         </button>
       </div>
@@ -556,10 +555,9 @@ export default function AdminPage({ onStudentClick }: Props) {
     <div className="min-h-screen bg-sb-bg">
       <Header />
       <TabBar />
-      {tab === 'dashboard' && <DashboardView />}
-      {tab === 'students' && <StudentsView />}
-      {tab === 'classes' && <ClassesView />}
-      {tab === 'history' && <HistoryView />}
+      {tab === 'students' && StudentsView()}
+      {tab === 'classes' && ClassesView()}
+      {tab === 'history' && HistoryView()}
     </div>
   );
 }
