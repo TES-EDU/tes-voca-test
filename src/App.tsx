@@ -21,13 +21,17 @@ export default function App() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [adminStudent, setAdminStudent] = useState<string | null>(null);
+  const [studentId, setStudentId] = useState<string | undefined>();
+  const [academyId, setAcademyId] = useState<string | undefined>();
 
-  const handleStart = useCallback((name: string, group: '1-2' | '3-4' | '5-6') => {
+  const handleStart = useCallback((name: string, group: '1-2' | '3-4' | '5-6', sId?: string, aId?: string) => {
     const qs = generateTest(group);
     setStudentName(name);
     setLevelGroup(group);
     setQuestions(qs);
     setAnswers(Array(qs.length).fill(null));
+    setStudentId(sId);
+    setAcademyId(aId);
     setScreen('test');
   }, []);
 
@@ -83,6 +87,8 @@ export default function App() {
         answers={answers}
         studentName={studentName}
         levelGroup={levelGroup}
+        studentId={studentId}
+        academyId={academyId}
         onRestart={handleRestart}
         onReviewDetail={() => setScreen('result-detail')}
       />

@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase, lookupCode, findStudent, createStudentProfile, addStudentToClass, type CodeLookupResult, type StudentRow } from '../lib/supabase';
 
 interface Props {
-  onStart: (name: string, levelGroup: '1-2' | '3-4' | '5-6') => void;
+  onStart: (name: string, levelGroup: '1-2' | '3-4' | '5-6', studentId?: string, academyId?: string) => void;
 }
 
 const LEVELS = [
@@ -75,18 +75,183 @@ function LevelCard({ lv, on, onClick }: { lv: typeof LEVELS[number]; on: boolean
   );
 }
 
+// ── Duplicate Name Modal ──
+function DuplicateModal({
+  student,
+  onConfirm,
+  onNewProfile,
+}: {
+  student: StudentRow;
+  onConfirm: () => void;
+  onNewProfile: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl animate-[slideUp_0.3s_ease-out]">
+        <div className="text-5xl mb-3">👋</div>
+        <h3 className="text-xl font-bold text-sb-ink mb-1">{student.name}님,</h3>
+        <p className="text-sm text-sb-muted mb-1">{student.grade || '학년 미설정'}</p>
+        <p className="text-sb-ink mb-6">이 프로필로 시험을 시작할까요?</p>
+
+        <button
+          onClick={onConfirm}
+          className="w-full py-3.5 mb-3 bg-gradient-to-r from-sb-primary to-sb-primary-dark text-white font-bold rounded-xl shadow-md cursor-pointer"
+        >
+          네, 시작하기
+        </button>
+        <button
+          onClick={onNewProfile}
+          className="w-full py-3.5 bg-sb-surface-alt text-sb-muted font-medium rounded-xl cursor-pointer"
+        >
+          아니요, 동명이인입니다 (새 프로필)
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function StartScreen({ onStart }: Props) {
   const [name, setName] = useState('');
   const [testCode, setTestCode] = useState('');
   const [selected, setSelected] = useState<'1-2' | '3-4' | '5-6'>('3-4');
 
-  const VALID_CODE = 'TES1234';
-  const codeValid = testCode.trim().toUpperCase() === VALID_CODE;
-  const canStart = !!name.trim() && codeValid;
-  const handleStart = () => { if (canStart) onStart(name.trim(), selected); };
+  // Code lookup state
+  const [codeLookup, setCodeLookup] = useState<CodeLookupResult | null>(null);
+  const [codeChecking, setCodeChecking] = useState(false);
+  const [codeError, setCodeError] = useState(false);
+
+  // Student profile state
+  const [submitting, setSubmitting] = useState(false);
+  const [duplicateStudent, setDuplicateStudent] = useState<StudentRow | null>(null);
+
+  // Remember last used code
+  useEffect(() => {
+    const lastCode = localStorage.getItem('lastTestCode');
+    if (lastCode) {
+      setTestCode(lastCode);
+    }
+  }, []);
+
+  // Lookup code when input changes (debounced)
+  const doLookup = useCallback(async (code: string) => {
+    if (code.trim().length < 3) {
+      setCodeLookup(null);
+      setCodeError(false);
+      return;
+    }
+    setCodeChecking(true);
+    const result = await lookupCode(code);
+    setCodeLookup(result);
+    setCodeError(!result && code.trim().length >= 6);
+    setCodeChecking(false);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => doLookup(testCode), 400);
+    return () => clearTimeout(timer);
+  }, [testCode, doLookup]);
+
+  const codeValid = !!codeLookup;
+  const canStart = !!name.trim() && codeValid && !submitting;
+
+  // Code status message
+  const codeStatusText = () => {
+    if (codeChecking) return '확인 중...';
+    if (codeLookup?.type === 'class') {
+      return `✅ ${codeLookup.academy.name} · ${codeLookup.classData?.name}`;
+    }
+    if (codeLookup?.type === 'academy') {
+      return `✅ ${codeLookup.academy.name}`;
+    }
+    if (codeError) return '유효하지 않은 코드입니다.';
+    return '선생님께 받은 코드를 입력해 주세요.';
+  };
+
+  const codeStatusColor = () => {
+    if (codeLookup) return 'text-sb-correct-dark';
+    if (codeError) return 'text-sb-orange';
+    return 'text-sb-muted';
+  };
+
+  const handleStart = async () => {
+    if (!canStart || !codeLookup) return;
+
+    setSubmitting(true);
+    const academyId = codeLookup.academy.id;
+
+    try {
+      // Find existing student in this academy
+      const existing = await findStudent(name.trim(), academyId);
+
+      if (existing) {
+        // Show duplicate confirmation modal
+        setDuplicateStudent(existing);
+        setSubmitting(false);
+        return;
+      }
+
+      // No existing student — create new profile
+      await startWithNewProfile(academyId);
+    } catch {
+      setSubmitting(false);
+    }
+  };
+
+  const handleConfirmExisting = async () => {
+    if (!duplicateStudent || !codeLookup) return;
+    setSubmitting(true);
+    setDuplicateStudent(null);
+
+    const academyId = codeLookup.academy.id;
+    const studentId = duplicateStudent.id;
+
+    // If entered via class code, add to class
+    if (codeLookup.type === 'class' && codeLookup.classData) {
+      await addStudentToClass(codeLookup.classData.id, studentId);
+    }
+
+    localStorage.setItem('lastTestCode', testCode.trim().toUpperCase());
+    setSubmitting(false);
+    onStart(name.trim(), selected, studentId, academyId);
+  };
+
+  const startWithNewProfile = async (academyId: string) => {
+    setSubmitting(true);
+    setDuplicateStudent(null);
+
+    const student = await createStudentProfile(name.trim(), academyId);
+    if (!student) {
+      setSubmitting(false);
+      return;
+    }
+
+    // If entered via class code, add to class
+    if (codeLookup?.type === 'class' && codeLookup.classData) {
+      await addStudentToClass(codeLookup.classData.id, student.id);
+    }
+
+    localStorage.setItem('lastTestCode', testCode.trim().toUpperCase());
+    setSubmitting(false);
+    onStart(name.trim(), selected, student.id, academyId);
+  };
+
+  // ── Code input border style ──
+  const codeBorderClass = codeLookup
+    ? 'border-[1.5px] border-sb-primary shadow-[0_0_0_4px_#E8F9FA]'
+    : codeError
+    ? 'border-[1.5px] border-sb-orange shadow-[0_0_0_4px_#FFF3E0]'
+    : 'border-[1.5px] border-sb-line';
 
   return (
     <div className="bg-sb-bg">
+      {/* ── Duplicate Name Modal ── */}
+      {duplicateStudent && codeLookup && (
+        <DuplicateModal
+          student={duplicateStudent}
+          onConfirm={handleConfirmExisting}
+          onNewProfile={() => startWithNewProfile(codeLookup.academy.id)}
+        />
+      )}
 
       {/* ── Mobile / Tablet ── */}
       <div className="lg:hidden min-h-screen flex flex-col">
@@ -116,6 +281,7 @@ export default function StartScreen({ onStart }: Props) {
             <span className="hidden md:inline">응시자 이름과 레벨을 확인한 뒤 [시작하기]를 눌러 주세요.<br />제한시간은 없으며, 중간 저장되지 않습니다.</span>
           </p>
 
+          {/* Step 1: Name */}
           <div className="mb-7">
             <label className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2 tracking-wide">
               <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">1</span>
@@ -125,7 +291,6 @@ export default function StartScreen({ onStart }: Props) {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
                 placeholder="예: 김민준"
                 className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl"
               />
@@ -133,23 +298,24 @@ export default function StartScreen({ onStart }: Props) {
             <p className="text-[11px] text-sb-muted mt-1.5">학생증 또는 출석부의 이름 그대로 입력해 주세요.</p>
           </div>
 
+          {/* Step 2: Code */}
           <div className="mb-7">
             <label className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2 tracking-wide">
               <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">2</span>
               응시 코드 <span className="text-sb-orange">*</span>
             </label>
-            <div className={`bg-sb-surface rounded-xl transition-all duration-150 ${testCode && codeValid ? 'border-[1.5px] border-sb-primary shadow-[0_0_0_4px_#E8F9FA]' : testCode && !codeValid ? 'border-[1.5px] border-sb-orange shadow-[0_0_0_4px_#FFF3E0]' : 'border-[1.5px] border-sb-line'}`}>
+            <div className={`bg-sb-surface rounded-xl transition-all duration-150 ${codeBorderClass}`}>
               <input
                 value={testCode}
                 onChange={(e) => setTestCode(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
                 placeholder="응시 코드를 입력하세요"
-                className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl"
+                className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl uppercase tracking-widest"
               />
             </div>
-            <p className="text-[11px] text-sb-muted mt-1.5">{testCode && !codeValid ? '응시 코드가 올바르지 않습니다.' : '선생님께 받은 응시 코드를 입력해 주세요.'}</p>
+            <p className={`text-[11px] mt-1.5 ${codeStatusColor()}`}>{codeStatusText()}</p>
           </div>
 
+          {/* Step 3: Level */}
           <div className="mb-9">
             <div className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2.5 tracking-wide">
               <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">3</span>
@@ -171,7 +337,7 @@ export default function StartScreen({ onStart }: Props) {
               canStart ? 'bg-sb-primary-dark text-white shadow-[0_8px_24px_rgba(27,122,132,0.2)] hover:bg-sb-ink cursor-pointer' : 'bg-sb-surface-alt text-sb-muted cursor-not-allowed'
             }`}
           >
-            시작하기 →
+            {submitting ? '준비 중...' : '시작하기 →'}
           </button>
           <p className="text-[11px] text-sb-muted text-center mt-3">시작 후에는 페이지를 새로 고치지 마세요.</p>
         </div>
@@ -213,6 +379,7 @@ export default function StartScreen({ onStart }: Props) {
             </a>
           </div>
 
+          {/* Step 1: Name */}
           <div className="mb-7">
             <label className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2 tracking-wide">
               <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">1</span>
@@ -222,7 +389,6 @@ export default function StartScreen({ onStart }: Props) {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
                 placeholder="예: 김민준"
                 className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl"
               />
@@ -230,23 +396,24 @@ export default function StartScreen({ onStart }: Props) {
             <p className="text-[11px] text-sb-muted mt-1.5">학생증 또는 출석부의 이름 그대로 입력해 주세요.</p>
           </div>
 
+          {/* Step 2: Code */}
           <div className="mb-7">
             <label className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2 tracking-wide">
               <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">2</span>
               응시 코드 <span className="text-sb-orange">*</span>
             </label>
-            <div className={`bg-sb-surface rounded-xl transition-all duration-150 ${testCode && codeValid ? 'border-[1.5px] border-sb-primary shadow-[0_0_0_4px_#E8F9FA]' : testCode && !codeValid ? 'border-[1.5px] border-sb-orange shadow-[0_0_0_4px_#FFF3E0]' : 'border-[1.5px] border-sb-line'}`}>
+            <div className={`bg-sb-surface rounded-xl transition-all duration-150 ${codeBorderClass}`}>
               <input
                 value={testCode}
                 onChange={(e) => setTestCode(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
                 placeholder="응시 코드를 입력하세요"
-                className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl"
+                className="w-full text-lg font-semibold text-sb-ink border-none px-[18px] py-4 bg-transparent outline-none rounded-xl uppercase tracking-widest"
               />
             </div>
-            <p className="text-[11px] text-sb-muted mt-1.5">{testCode && !codeValid ? '응시 코드가 올바르지 않습니다.' : '선생님께 받은 응시 코드를 입력해 주세요.'}</p>
+            <p className={`text-[11px] mt-1.5 ${codeStatusColor()}`}>{codeStatusText()}</p>
           </div>
 
+          {/* Step 3: Level */}
           <div className="mb-9">
             <div className="flex items-center gap-2 text-xs font-bold text-sb-ink mb-2.5 tracking-wide">
               <span className="w-[18px] h-[18px] rounded-full bg-sb-primary text-white text-[10px] font-extrabold flex items-center justify-center">3</span>
@@ -270,11 +437,18 @@ export default function StartScreen({ onStart }: Props) {
                 : 'bg-sb-surface-alt text-sb-muted cursor-not-allowed'
             }`}
           >
-            시작하기 →
+            {submitting ? '준비 중...' : '시작하기 →'}
           </button>
           <p className="text-[11px] text-sb-muted text-center mt-3">시작 후에는 페이지를 새로 고치지 마세요.</p>
         </div>
       </div>
+
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

@@ -9,6 +9,8 @@ interface Props {
   answers: (number | null)[];
   studentName: string;
   levelGroup: '1-2' | '3-4' | '5-6';
+  studentId?: string;
+  academyId?: string;
   onRestart: () => void;
   onReviewDetail: () => void;
 }
@@ -67,7 +69,7 @@ function WrongListSticky({ wrongs, onReviewDetail }: {
 }
 
 export default function ResultScreen({
-  questions, answers, studentName, levelGroup, onRestart, onReviewDetail,
+  questions, answers, studentName, levelGroup, studentId, academyId, onRestart, onReviewDetail,
 }: Props) {
   const [shareState, setShareState] = useState<'idle' | 'saving' | 'copied' | 'error'>('idle');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -115,6 +117,8 @@ export default function ResultScreen({
         word: w.word, meaning: w.meaning, userAnswer: w.userAnswer,
         correctAnswer: w.word, sentence: w.sentence,
       })),
+      student_id: studentId ?? null,
+      academy_id: academyId ?? null,
     }).then(id => {
       if (id) {
         const url = `${window.location.origin}${window.location.pathname}?report=${id}`;
