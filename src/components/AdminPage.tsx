@@ -16,21 +16,7 @@ function fmtDateTime(dateStr: string | undefined): string {
   return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Dashboard Tile ──
-function DashTile({ icon, label, desc, count, color, onClick }: {
-  icon: React.ReactNode; label: string; desc: string; count?: number; color: string; onClick: () => void;
-}) {
-  return (
-    <button onClick={onClick} className={`${color} rounded-2xl p-5 text-left transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer`}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-xl bg-white/60 flex items-center justify-center">{icon}</div>
-        {count !== undefined && <span className="text-2xl font-extrabold tabular-nums">{count}</span>}
-      </div>
-      <div className="text-sm font-bold">{label}</div>
-      <div className="text-xs opacity-70 mt-0.5">{desc}</div>
-    </button>
-  );
-}
+
 
 export default function AdminPage({ onStudentClick }: Props) {
   const [authed, setAuthed] = useState(false);
@@ -217,50 +203,6 @@ export default function AdminPage({ onStudentClick }: Props) {
     </div>
   );
 
-  // ── Dashboard Tab ──
-  const DashboardView = () => (
-    <div className="p-5 lg:p-8 max-w-4xl mx-auto">
-      <div className="text-xs font-extrabold tracking-[0.22em] text-sb-primary-dark mb-1">DASHBOARD</div>
-      <h1 className="text-2xl lg:text-3xl font-extrabold text-sb-ink mb-6">관리자 대시보드</h1>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <DashTile icon={<Users size={20} className="text-sb-primary-dark" />}
-          label="학생 관리" desc="전체 학생 보기" count={students.length}
-          color="bg-sb-primary-pale text-sb-primary-dark" onClick={() => setTab('students')} />
-        <DashTile icon={<BookOpen size={20} className="text-sb-correct-dark" />}
-          label="반 관리" desc="반 생성 · 학생 배정" count={classes.length}
-          color="bg-sb-correct-pale text-sb-correct-dark" onClick={() => setTab('classes')} />
-        <DashTile icon={<AlertTriangle size={20} className="text-sb-orange-dark" />}
-          label="오답 분석" desc="자주 틀린 단어 TOP" count={wrongWordRanking.length}
-          color="bg-sb-orange-pale text-sb-orange-dark" onClick={() => setTab('dashboard')} />
-        <DashTile icon={<ClipboardList size={20} className="text-sb-ink" />}
-          label="시험 이력" desc="날짜별 결과 보기" count={results.length}
-          color="bg-sb-surface-alt text-sb-ink" onClick={() => setTab('history')} />
-      </div>
-
-      {/* Wrong word ranking inline */}
-      <div className="bg-sb-surface border border-sb-line rounded-2xl p-5">
-        <div className="text-xs font-extrabold tracking-[0.22em] text-sb-orange-dark mb-4">오답 TOP 15</div>
-        {wrongWordRanking.length === 0 ? (
-          <div className="text-center text-sb-muted py-8 text-sm">데이터가 없습니다.</div>
-        ) : (
-          <div className="space-y-1.5">
-            {wrongWordRanking.map((w, i) => (
-              <div key={w.word} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sb-surface-alt">
-                <span className="w-6 text-right text-xs font-bold text-sb-muted tabular-nums">{i + 1}</span>
-                <div className="w-1.5 h-6 rounded-full bg-sb-orange shrink-0" style={{ opacity: 1 - i * 0.05 }} />
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sb-ink truncate">{w.word}</div>
-                  <div className="text-xs text-sb-muted truncate">{w.meaning}</div>
-                </div>
-                <div className="text-sm font-extrabold text-sb-orange-dark tabular-nums">{w.count}회</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 
   // ── Students Tab ──
   const StudentsView = () => (
