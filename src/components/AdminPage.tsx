@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Copy, Check, Loader2, RefreshCw, LogOut, ChevronRight, Search, Users, BookOpen, AlertTriangle, ClipboardList, Plus, Trash2 } from 'lucide-react';
+import { Copy, Check, Loader2, RefreshCw, LogOut, ChevronRight, Search, Users, BookOpen, AlertTriangle, ClipboardList, Plus, Trash2, MoreHorizontal } from 'lucide-react';
 import { getAllTestResults, getTeacherSession, getMyAcademies, setCurrentAcademy, getCurrentAcademyId, teacherLogout, supabase, getStudents, getClasses, createClass, updateClassStudents, deleteClass, type TestResultRow, type AcademyRow, type StudentRow, type ClassRow } from '../lib/supabase';
 import { scoreColor, groupAccent } from '../lib/sunbeam';
 import TeacherLogin from './TeacherLogin';
@@ -44,6 +44,8 @@ export default function AdminPage({ onStudentClick }: Props) {
   const [levelFilter, setLevelFilter] = useState<LevelFilter>('all');
   const [query, setQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [mobileStudentFilter, setMobileStudentFilter] = useState<'all' | 'tested' | 'untested' | 'attention'>('all');
+  const [studentSearch, setStudentSearch] = useState('');
   const [academy, setAcademy] = useState<AcademyRow | null>(null);
 
   // Class management
@@ -119,6 +121,37 @@ export default function AdminPage({ onStudentClick }: Props) {
     return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 15);
   }, [results]);
 
+  // Per-student stats for mobile rich cards
+  const studentStats = useMemo(() => {
+    const today = new Date().toDateString();
+    return students.map(s => {
+      const sr = results.filter(r => r.user_name === s.name);
+      const cls = classes.find(c => (c.student_ids || []).includes(s.id));
+      const scores = sr.map(r => r.score);
+      const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+      const wCnt = sr.reduce((sum, r) => sum + (r.incorrect_answers?.length || 0), 0);
+      const tQ = sr.reduce((sum, r) => sum + r.total_questions, 0);
+      const wrongRate = tQ ? Math.round((wCnt / tQ) * 100) : null;
+      const testedToday = sr.some(r => r.created_at && new Date(r.created_at).toDateString() === today);
+      const trend = scores.length >= 2 ? scores[0] - scores[Math.min(scores.length - 1, 3)] : null;
+      const needsAttention = (avg !== null && avg < 50) || (wrongRate !== null && wrongRate > 30);
+      return { ...s, cls, latest: sr[0], avg, wrongRate, testedToday, trend, needsAttention, testCount: sr.length };
+    });
+  }, [students, results, classes]);
+
+  const todayTestedCount = useMemo(() => studentStats.filter(s => s.testedToday).length, [studentStats]);
+  const untestedCount = useMemo(() => studentStats.filter(s => !s.testedToday && s.testCount > 0).length, [studentStats]);
+  const attentionCount = useMemo(() => studentStats.filter(s => s.needsAttention).length, [studentStats]);
+
+  const mobileFilteredStudents = useMemo(() => {
+    let list = studentStats;
+    if (mobileStudentFilter === 'tested') list = list.filter(s => s.testedToday);
+    if (mobileStudentFilter === 'untested') list = list.filter(s => !s.testedToday && s.testCount > 0);
+    if (mobileStudentFilter === 'attention') list = list.filter(s => s.needsAttention);
+    if (studentSearch.trim()) list = list.filter(s => s.name.includes(studentSearch.trim()));
+    return list;
+  }, [studentStats, mobileStudentFilter, studentSearch]);
+
   // Class management handlers
   const handleCreateClass = async () => {
     if (!newClassName.trim()) return;
@@ -145,16 +178,21 @@ export default function AdminPage({ onStudentClick }: Props) {
 
   // ── Header ──
   const Header = () => (
-    <header className="bg-sb-surface border-b border-sb-line px-5 h-14 flex items-center justify-between sticky top-0 z-10">
-      <div className="flex items-center gap-2.5">
-        <div className="w-[22px] h-[22px] rounded-md bg-gradient-to-br from-sb-primary to-sb-primary-dark flex items-center justify-center text-white text-[11px] font-extrabold">T</div>
-        <span className="text-sm font-extrabold text-sb-ink">TES VOCA</span>
-        <div className="w-px h-3 bg-sb-line" />
-        <span className="text-xs text-sb-muted font-medium">· {academy?.name || '관리'}</span>
+    <header className="bg-sb-surface border-b border-sb-line px-4 md:px-5 h-14 flex items-center justify-between sticky top-0 z-10">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-[22px] h-[22px] rounded-md bg-gradient-to-br from-sb-primary to-sb-primary-dark flex items-center justify-center text-white text-[11px] font-extrabold shrink-0">T</div>
+        <span className="text-sm font-extrabold text-sb-ink truncate md:hidden">{academy?.name || 'TES VOCA'}</span>
+        <span className="text-sm font-extrabold text-sb-ink hidden md:inline">TES VOCA</span>
+        <div className="w-px h-3 bg-sb-line hidden md:block" />
+        <span className="text-xs text-sb-muted font-medium hidden md:inline">· {academy?.name || '관리'}</span>
       </div>
-      <div className="flex items-center gap-3">
-        <button onClick={loadAll} className="flex items-center gap-1.5 text-sm text-sb-muted hover:text-sb-primary-dark transition-colors"><RefreshCw size={14} />새로고침</button>
-        <button onClick={handleLogout} className="flex items-center gap-1.5 text-sm text-sb-muted hover:text-sb-wrong-dark transition-colors"><LogOut size={14} />로그아웃</button>
+      <div className="flex items-center gap-1 md:gap-3 shrink-0">
+        <button onClick={loadAll} className="p-2 md:p-0 flex items-center gap-1.5 text-sm text-sb-muted hover:text-sb-primary-dark transition-colors">
+          <RefreshCw size={16} /><span className="hidden md:inline">새로고침</span>
+        </button>
+        <button onClick={handleLogout} className="p-2 md:p-0 flex items-center gap-1.5 text-sm text-sb-muted hover:text-sb-wrong-dark transition-colors">
+          <LogOut size={16} /><span className="hidden md:inline">로그아웃</span>
+        </button>
       </div>
     </header>
   );
@@ -227,38 +265,140 @@ export default function AdminPage({ onStudentClick }: Props) {
 
   // ── Students Tab ──
   const StudentsView = () => (
-    <div className="p-5 lg:p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:p-5 lg:p-8 max-w-4xl mx-auto">
       <div className="text-xs font-extrabold tracking-[0.22em] text-sb-primary-dark mb-1">STUDENTS</div>
-      <h1 className="text-2xl font-extrabold text-sb-ink mb-6">학생 관리 <span className="text-sb-muted font-semibold text-lg ml-1">{students.length}명</span></h1>
-      {loading ? <div className="flex justify-center py-20"><Loader2 size={28} className="animate-spin text-sb-muted" /></div> : students.length === 0 ? (
-        <div className="text-center py-20 text-sb-muted text-sm">등록된 학생이 없습니다.<br />학생이 응시 코드로 시험을 치면 자동으로 등록됩니다.</div>
-      ) : (
-        <div className="grid gap-2">
-          {students.map(s => {
-            const studentResults = results.filter(r => r.user_name === s.name);
-            const lastResult = studentResults[0];
-            const cls = classes.find(c => (c.student_ids || []).includes(s.id));
-            return (
-              <button key={s.id} onClick={() => onStudentClick(s.name)}
-                className="w-full bg-sb-surface border border-sb-line rounded-xl px-4 py-3 flex items-center gap-3 hover:border-sb-primary-light hover:bg-sb-primary-paler transition-all text-left cursor-pointer">
-                <div className="w-9 h-9 rounded-full bg-sb-primary text-white text-sm font-bold flex items-center justify-center shrink-0">
-                  {s.name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sb-ink">{s.name}</span>
-                    {cls && <span className="text-[10px] px-1.5 py-0.5 bg-sb-correct-pale text-sb-correct-dark rounded font-semibold">{cls.name}</span>}
-                  </div>
-                  <div className="text-xs text-sb-muted">
-                    {studentResults.length > 0 ? `시험 ${studentResults.length}회 · 최근 ${lastResult?.score}%` : '시험 기록 없음'}
-                  </div>
-                </div>
-                <ChevronRight size={16} className="text-sb-muted-soft shrink-0" />
-              </button>
-            );
-          })}
+      <h1 className="text-2xl font-extrabold text-sb-ink mb-4 md:mb-6">학생 관리 <span className="text-sb-muted font-semibold text-lg ml-1">{students.length}명</span></h1>
+
+      {/* ── Mobile: Rich student cards ── */}
+      <div className="md:hidden">
+        {/* Status summary cards */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="bg-sb-correct-pale rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-1 mb-1"><span className="w-1.5 h-1.5 rounded-full bg-sb-correct" /><span className="text-[10px] font-bold text-sb-correct-dark">오늘 응시</span></div>
+            <div className="text-xl font-extrabold text-sb-correct-dark tabular-nums">{todayTestedCount}<span className="text-xs font-bold">명</span></div>
+          </div>
+          <div className="bg-sb-orange-pale rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-1 mb-1"><span className="w-1.5 h-1.5 rounded-full bg-sb-orange" /><span className="text-[10px] font-bold text-sb-orange-dark">미응시</span></div>
+            <div className="text-xl font-extrabold text-sb-orange-dark tabular-nums">{untestedCount}<span className="text-xs font-bold">명</span></div>
+          </div>
+          <div className="bg-sb-wrong-pale rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-1 mb-1"><span className="w-1.5 h-1.5 rounded-full bg-sb-wrong" /><span className="text-[10px] font-bold text-sb-wrong-dark">관리 필요</span></div>
+            <div className="text-xl font-extrabold text-sb-wrong-dark tabular-nums">{attentionCount}<span className="text-xs font-bold">명</span></div>
+          </div>
         </div>
-      )}
+
+        {/* Filter pills */}
+        <div className="flex gap-1.5 mb-3 overflow-x-auto no-scrollbar">
+          {([
+            { id: 'all' as const, label: '전체', count: students.length },
+            { id: 'tested' as const, label: '응시', count: todayTestedCount },
+            { id: 'untested' as const, label: '미응시', count: untestedCount },
+            { id: 'attention' as const, label: '관리', count: attentionCount },
+          ]).map(f => (
+            <button key={f.id} onClick={() => setMobileStudentFilter(f.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
+                mobileStudentFilter === f.id ? 'bg-sb-primary-dark text-white' : 'bg-sb-surface border border-sb-line text-sb-muted'
+              }`}>{f.label} {f.count}</button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-sb-muted-soft" />
+          <input value={studentSearch} onChange={e => setStudentSearch(e.target.value)}
+            placeholder="학생 이름 검색..."
+            className="w-full h-10 pl-9 pr-3 rounded-xl border border-sb-line bg-sb-surface text-sm outline-none focus:border-sb-primary" />
+        </div>
+
+        {/* Rich student cards */}
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-sb-muted" /></div>
+        ) : mobileFilteredStudents.length === 0 ? (
+          <div className="text-center py-16 text-sb-muted text-sm">{studentSearch.trim() ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</div>
+        ) : (
+          <div className="space-y-3">
+            {mobileFilteredStudents.map(s => (
+              <div key={s.id} className="bg-sb-surface border border-sb-line rounded-2xl p-4">
+                {/* Name row */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-11 h-11 rounded-full bg-sb-primary text-white text-base font-bold flex items-center justify-center shrink-0">{s.name.charAt(0)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-sb-ink">{s.name}</span>
+                      {s.cls && <span className="text-[10px] px-1.5 py-0.5 bg-sb-correct-pale text-sb-correct-dark rounded font-semibold">{s.cls.name}</span>}
+                    </div>
+                    {s.testedToday && (
+                      <div className="flex items-center gap-1 mt-0.5"><span className="w-1.5 h-1.5 rounded-full bg-sb-correct" /><span className="text-[11px] text-sb-correct-dark font-semibold">오늘 응시</span></div>
+                    )}
+                    {!s.testedToday && s.testCount === 0 && <div className="text-[11px] text-sb-muted mt-0.5">시험 기록 없음</div>}
+                  </div>
+                  <button onClick={() => onStudentClick(s.name)} className="p-1.5 text-sb-muted hover:text-sb-ink"><MoreHorizontal size={18} /></button>
+                </div>
+
+                {s.testCount > 0 && (
+                  <>
+                    {/* Stats row */}
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div><div className="text-[10px] text-sb-muted mb-0.5">최근 점수</div><div className="text-lg font-extrabold text-sb-ink tabular-nums">{s.latest?.score ?? '-'}<span className="text-[10px] font-bold text-sb-muted">점</span></div></div>
+                      <div><div className="text-[10px] text-sb-muted mb-0.5">평균</div><div className="text-lg font-extrabold text-sb-ink tabular-nums">{s.avg ?? '-'}<span className="text-[10px] font-bold text-sb-muted">점</span></div></div>
+                      <div><div className="text-[10px] text-sb-muted mb-0.5">오답률</div><div className="text-lg font-extrabold text-sb-ink tabular-nums">{s.wrongRate ?? '-'}<span className="text-[10px] font-bold text-sb-muted">%</span></div></div>
+                    </div>
+                    {/* Progress + trend */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-[11px] text-sb-muted shrink-0">최근 {Math.min(s.testCount, 4)}회</span>
+                      <div className="flex-1 h-1.5 bg-sb-line rounded-full overflow-hidden"><div className="h-full bg-sb-primary-dark rounded-full" style={{ width: `${s.avg ?? 0}%` }} /></div>
+                      {s.trend !== null && <span className={`text-[11px] font-bold tabular-nums shrink-0 ${s.trend >= 0 ? 'text-sb-correct' : 'text-sb-wrong'}`}>{s.trend >= 0 ? '↑' : '↓'}{Math.abs(s.trend)}점</span>}
+                    </div>
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <button onClick={() => onStudentClick(s.name)} className="flex-1 h-9 flex items-center justify-center gap-1.5 rounded-lg bg-sb-primary-dark text-white text-xs font-bold cursor-pointer">
+                        <ChevronRight size={13} />이력 보기
+                      </button>
+                      <button className="flex-1 h-9 flex items-center justify-center gap-1.5 rounded-lg bg-sb-surface border border-sb-line text-sb-muted text-xs font-semibold">
+                        <ClipboardList size={13} />시험 이력
+                      </button>
+                    </div>
+                  </>
+                )}
+                {s.testCount === 0 && (
+                  <button onClick={() => onStudentClick(s.name)} className="w-full h-9 flex items-center justify-center gap-1.5 rounded-lg bg-sb-surface-alt text-sb-muted text-xs font-semibold">
+                    <ChevronRight size={13} />상세 보기
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Tablet/Desktop: existing simple list ── */}
+      <div className="hidden md:block">
+        {loading ? <div className="flex justify-center py-20"><Loader2 size={28} className="animate-spin text-sb-muted" /></div> : students.length === 0 ? (
+          <div className="text-center py-20 text-sb-muted text-sm">등록된 학생이 없습니다.<br />학생이 응시 코드로 시험을 치면 자동으로 등록됩니다.</div>
+        ) : (
+          <div className="grid gap-2">
+            {students.map(s => {
+              const studentResults = results.filter(r => r.user_name === s.name);
+              const lastResult = studentResults[0];
+              const cls = classes.find(c => (c.student_ids || []).includes(s.id));
+              return (
+                <button key={s.id} onClick={() => onStudentClick(s.name)}
+                  className="w-full bg-sb-surface border border-sb-line rounded-xl px-4 py-3 flex items-center gap-3 hover:border-sb-primary-light hover:bg-sb-primary-paler transition-all text-left cursor-pointer">
+                  <div className="w-9 h-9 rounded-full bg-sb-primary text-white text-sm font-bold flex items-center justify-center shrink-0">{s.name.charAt(0)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sb-ink">{s.name}</span>
+                      {cls && <span className="text-[10px] px-1.5 py-0.5 bg-sb-correct-pale text-sb-correct-dark rounded font-semibold">{cls.name}</span>}
+                    </div>
+                    <div className="text-xs text-sb-muted">{studentResults.length > 0 ? `시험 ${studentResults.length}회 · 최근 ${lastResult?.score}%` : '시험 기록 없음'}</div>
+                  </div>
+                  <ChevronRight size={16} className="text-sb-muted-soft shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 
